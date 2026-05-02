@@ -27,9 +27,20 @@ jobs:
         run: |
           python -m pytest tests/unit tests/integration -v --tb=short -m "not e2e"
 
-      - name: Check for secrets in code
+      - name: Check for hardcoded secrets
         run: |
-          if git grep -l -iE 'api_key|secret|password|token' -- '*.py' | grep -v '.env' | grep -v '__pycache__'; then
-            echo "⚠️ Possible secrets found in source files"
+          # Flag actual hardcoded secret VALUES (not variable names, parameter names, or comments)
+          # Matches patterns like: api_key = "sk-...", token = "ghp_...", password = "xyz"
+          # Excludes: SecretStr, env vars, test fixtures, comments, __pycache__
+          if git grep -n -E '(api_key|secret|password|token)\s*=\s*["\x27][A-Za-z0-9_\-]{10,}["\x27]' -- '*.py' \
+            | grep -v '.env' \
+            | grep -v '__pycache__' \
+            | grep -v 'test_' \
+            | grep -v 'SecretStr' \
+            | grep -v 'os.environ' \
+            | grep -v '# ' \
+            | grep -v 'get_secret_value'; then
+            echo "⚠️ Possible hardcoded secrets found in source files"
             exit 1
           fi
+          echo "✅ No hardcoded secrets detected"
